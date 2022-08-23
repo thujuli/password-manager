@@ -8,43 +8,50 @@ from tabulate import tabulate
 """
 
 
-def create_key(key_path):
-    with open(key_path, "wb") as f:
-        f.write(Fernet.generate_key())
+class PasswordManager:
+    def __init__(self):
+        self.key = input("Input Key Path: ")
+        self.path = input("Input Path to Read/Write Password: ")
 
+    def create_key(self):
+        with open(self.key, "wb") as f:
+            f.write(Fernet.generate_key())
 
-def load_key(key_path):
-    with open(key_path, "rb") as f:
-        return f.read()
+    def load_key(self):
+        try:
+            with open(self.key, "rb") as f:
+                return f.read()
+        except OSError:
+            return "File not found!, Input correct KEY PATH"
 
+    def generate_password(self, password):
+        return Fernet(self.load_key()).encrypt(password.encode()).decode()
 
-def generate_password(key_path, password):
-    key = load_key(key_path)
-    return Fernet(key).encrypt(password.encode()).decode()
+    def create_password(self):
+        site = input("Input site: ")
+        password = input("Input password: ")
+        with open(self.path, "a") as f:
+            f.write("{}:{}\n".format(site, self.generate_password(password)))
 
+    def load_password(self, password):
+        return Fernet(self.load_key()).decrypt(password.encode())
 
-def create_password(key_path, passwd_path, site, password):
-    with open(passwd_path, "a") as f:
-        f.write("{}:{}\n".format(site, generate_password(key_path, password)))
-
-
-def load_password(key_path, password):
-    key = load_key(key_path)
-    return Fernet(key).decrypt(password.encode()).decode()
-
-
-def get_password(key_path, passwd_path):
-    with open(passwd_path, "r") as f:
-        lines = [line.strip().split(":") for line in f.readlines()]
-        res = []
-        for site, password in lines:
-            res.append([site, load_password(key_path, password)])
-        return res
+    def get_password(self):
+        try:
+            with open(self.path, "r") as f:
+                lines = [line.strip().split(":") for line in f.readlines()]
+                res = []
+                for site, password in lines:
+                    pass
+                    res.append([site, self.load_password(password)])
+                return tabulate(res)
+        except OSError:
+            return "File not found!, Input file Path where the password is saved!"
 
 
 if __name__ == "__main__":
-    # create_key("thujuli.key")
-    # print(load_key("thujuli.key"))
-    # create_password("thujuli.key", "thujuli.pass", "github", "github@test")
-    # print(tabulate(get_password("thujuli.key", "thujuli.pass")))
-    pass
+    user1 = PasswordManager()
+    # user1.create_key()
+    # print(user1.load_key())
+    # user1.create_password()
+    # print(user1.get_password())
