@@ -1,68 +1,16 @@
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pyfiglet import Figlet
 from tabulate import tabulate
-import hashlib
 import os
 import base64
 import sys
 import csv
 
 
-class PasswordManager:
-    def __init__(self) -> None:
-        self._salt = ""
-        self._key = ""
-
-    @property
-    def salt(self) -> str:
-        return self._salt
-
-    @property
-    def key(self) -> str:
-        return self._key
-
-    def create_key(self, password: str) -> None:
-        salt = os.urandom(32)
-        key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
-
-        # convert to str base64
-        salt_base64_str = base64.b64encode(salt).decode()
-        key_base64_str = base64.b64encode(key).decode()
-
-        with open("master.key", "w", encoding="utf-8") as file:
-            file.write(f"{salt_base64_str},{key_base64_str}")
-
-    def verify_key(self, password: str) -> bool:
-        with open("master.key", encoding="utf-8") as file:
-            for row in file:
-                self._salt, self._key = row.split(",")
-
-        # encode salt to bytes
-        salt_base64 = self._salt.encode()
-        salt_bytes = base64.b64decode(salt_base64)
-
-        # create new key
-        new_key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt_bytes, 100000)
-
-        # convert new_key to str base64
-        new_key_base64_str = base64.b64encode(new_key).decode()
-
-        return new_key_base64_str == self._key
-
-    def create_password(
-        self,
-        site: str,
-        username: str,
-        password: str,
-    ) -> None:
-        if not os.path.exists("password.csv"):
-            with open("password.csv") as csvfile:
-                writer = csv.DictWriter(csvfile, ("site", "username", "password"))
-                writer.writeheader()
-
-
 def main() -> None:
     clear()
-    pm = PasswordManager()
     banner("PM", "a password manager written in python.")
 
     try:
@@ -70,43 +18,139 @@ def main() -> None:
             raise FileNotFoundError
     except FileNotFoundError:
         password = get_password()
-        pm.create_key(password)
+        create_key(password)
 
-    mpass = input("Enter Master Key: ")
-
-    if not pm.verify_key(mpass):
+    mkey = input("Enter Master Key: ")
+    if not validation_key(mkey):
         sys.exit("Access Denied. Incorrect Master Key.")
 
-    clear()
-    menu_selected = menu()
+    while True:
+        clear()
+        banner("MENU", "please select the available options.")
+        menu_selected = menu()
 
-    if menu_selected == "1":
-        ...
-    elif menu_selected == "2":
-        while True:
-            clear()
-            banner("ENCRYPT", "encrypt the password and save to password.csv")
-            credentials = get_user_credentials()
+        if menu_selected == "1":
+            while True:
+                clear()
+                banner("LIST", "list all saved passwords")
+                credentials = user_credentials()
 
-            print(
-                tabulate(
-                    [list(credentials.values())],
-                    list(credentials.keys()),
-                    tablefmt="grid",
+                table = [list(x.values()) for x in credentials]
+                headers = credentials[0].keys()
+                print(
+                    "",
+                    tabulate(table, headers, tablefmt="grid"),
+                    sep="\n",
                 )
+
+                back = input("\nEnter 'back' to go back.\n>> ").strip().lower()
+
+                if back == "back":
+                    break
+
+        elif menu_selected == "2":
+            while True:
+                clear()
+                banner("ENCRYPT", "encrypt the password and save to password.csv")
+                credentials = get_user_credentials()
+
+                print(
+                    tabulate(
+                        [list(credentials.values())],
+                        list(credentials.keys()),
+                        tablefmt="grid",
+                    ),
+                    "",
+                    sep="\n",
+                )
+
+                try:
+                    sure = input("Are You Sure? [y/n] ").strip().lower()[0]
+                    if sure == "y":
+                        encrypt_password(**credentials)
+                        break
+                except IndexError:
+                    pass
+
+        elif menu_selected == "3":
+            ...
+        elif menu_selected == "4":
+            clear()
+            banner("DELETE", "delete password.")
+            credentials = user_credentials()
+
+            table = [list(x.values()) for x in credentials]
+            headers = credentials[0].keys()
+            print(
+                tabulate(table, headers, tablefmt="grid"),
+                sep="\n",
             )
-
-        # pm.create_password(*credentials)
-    elif menu_selected == "3":
-        ...
-    elif menu_selected == "4":
-        ...
-    else:
-        sys.exit("Exiting...")
+            input()
+        else:
+            sys.exit("Exiting...")
 
 
-# def show_table(table: list[list], headers: list, tablefmt="grid"):
-# print(tabulate(table, headers, tablefmt))
+def user_credentials() -> list[dict]:
+    mkey_str = ""
+    res = []
+
+    try:
+        with open("master.key", encoding="utf-8") as file:
+            for row in file:
+                _, mkey_str = row.split(",")
+    except FileNotFoundError:
+        sys.exit("Something went wrong.")
+
+    try:
+        with open("password.csv", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for i, row in enumerate(reader):
+                f = Fernet(mkey_str.encode())
+                token = row["password"]
+                password = f.decrypt(token).decode()
+
+                res.append(
+                    {
+                        "no": i + 1,
+                        "site": row["site"],
+                        "username": row["username"],
+                        "password": password,
+                    }
+                )
+    except FileNotFoundError:
+        sys.exit("Something went wrong.")
+
+    return res
+
+
+def encrypt_password(site: str, username: str, password) -> None:
+    mkey_str = ""
+
+    try:
+        with open("master.key", encoding="utf-8") as file:
+            for row in file:
+                _, mkey_str = row.split(",")
+    except FileNotFoundError:
+        sys.exit("Something went wrong.")
+
+    f = Fernet(mkey_str.encode())
+    token = f.encrypt(password.encode())
+
+    try:
+        if os.stat("password.csv").st_size == 0 or not os.path.exists("password.csv"):
+            raise FileNotFoundError
+    except FileNotFoundError:
+        with open("password.csv", "w", encoding="utf-8") as csvfile:
+            fieldnames = ("site", "username", "password")
+            writer = csv.DictWriter(csvfile, fieldnames)
+            writer.writeheader()
+
+    with open("password.csv", "a", encoding="utf-8") as csvfile:
+        fieldnames = ("site", "username", "password")
+        writer = csv.DictWriter(csvfile, fieldnames)
+        writer.writerow(
+            {"site": site, "username": username, "password": token.decode()}
+        )
 
 
 def get_user_credentials() -> dict:
@@ -143,11 +187,36 @@ def menu() -> str:
             print("Invalid Choice. Try Again. [1/2/3/4/5]")
 
 
-def clear() -> None:
-    if os.name == "nt":
-        os.system("cls")
-    else:
-        os.system("clear")
+def validation_key(password: str) -> bool:
+    salt_base64_str = ""
+    mkey_str = ""
+
+    with open("master.key", encoding="utf-8") as file:
+        for row in file:
+            salt_base64_str, mkey_str = row.split(",")
+
+    # encode salt to bytes
+    salt_base64 = salt_base64_str.encode()
+    salt = base64.b64decode(salt_base64)
+
+    # create new key
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=480000)
+    verify_key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+    return verify_key == mkey_str.encode()
+
+
+def create_key(password: str) -> None:
+    salt = os.urandom(32)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=480000)
+    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+    # convert to str base64
+    salt_base64_str = base64.b64encode(salt).decode()
+    key_str = key.decode()
+
+    with open("master.key", "w", encoding="utf-8") as file:
+        file.write(f"{salt_base64_str},{key_str}")
 
 
 def get_password() -> str:
@@ -177,53 +246,12 @@ def banner(title: str, desc: str, style="drpepper", len_dec=50) -> None:
     print("=" * len_dec)
 
 
-# def verify_key(password: str) -> bool:
-#     salt = ""
-#     key = ""
-#
-#     with open("master.key", encoding="utf-8") as file:
-#         for row in file:
-#             salt, key = row.split(",")
-#
-#     # encode salt to bytes
-#     salt_base64 = salt.encode()
-#     salt_bytes = base64.b64decode(salt_base64)
-#
-#     # create new key
-#     new_key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt_bytes, 100000)
-#
-#     # convert new_key to str base64
-#     new_key_base64_str = base64.b64encode(new_key).decode()
-#
-#     return new_key_base64_str == key
+def clear() -> None:
+    if os.name == "nt":
+        os.system("cls")
+    else:
+        os.system("clear")
 
-
-# def create_key(password: str) -> None:
-#     salt = os.urandom(32)
-#     key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
-#
-#     # convert to str base64
-#     salt_base64_str = base64.b64encode(salt).decode()
-#     key_base64_str = base64.b64encode(key).decode()
-#
-#     with open("master.key", "w", encoding="utf-8") as file:
-#         file.write(f"{salt_base64_str},{key_base64_str}")
-
-
-# User input
-# password = "mysecretpassword"
-# salt = os.urandom(16)  # Generate a random salt
-#
-# key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 10000, 32)
-
-# Encode the derived key and salt as base64
-# encoded_key = base64.b64encode(key).decode("utf-8")
-# encoded_salt = base64.b64encode(salt).decode("utf-8")
-#
-# print("Encoded Key:", encoded_key)
-# print("Key:", key)
-# print("Encoded Salt:", encoded_salt)
-# print("Salt:", salt)
 
 if __name__ == "__main__":
     main()
