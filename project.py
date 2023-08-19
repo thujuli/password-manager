@@ -30,19 +30,18 @@ def main() -> None:
         menu_selected = menu()
 
         if menu_selected == "1":
+            clear()
+            banner("LIST", "list all saved passwords")
+            credentials = user_credentials()
+
+            table = [list(x.values()) for x in credentials]
+            headers = credentials[0].keys()
+            print(
+                tabulate(table, headers, tablefmt="grid"),
+                sep="\n",
+            )
+
             while True:
-                clear()
-                banner("LIST", "list all saved passwords")
-                credentials = user_credentials()
-
-                table = [list(x.values()) for x in credentials]
-                headers = credentials[0].keys()
-                print(
-                    "",
-                    tabulate(table, headers, tablefmt="grid"),
-                    sep="\n",
-                )
-
                 back = input("\nEnter 'back' to go back.\n>> ").strip().lower()
 
                 if back == "back":
@@ -68,16 +67,15 @@ def main() -> None:
                     sure = input("Are You Sure? [y/n] ").strip().lower()[0]
                     if sure == "y":
                         encrypt_password(**credentials)
-                        break
                 except IndexError:
-                    pass
+                    continue
+
+                break
 
         elif menu_selected == "3":
-            ...
-        elif menu_selected == "4":
             clear()
-            banner("DELETE", "delete password.")
-            credentials = user_credentials()
+            banner("EDIT", "select and edit your saved password.")
+            credentials = user_credentials(show_passwd=False)
 
             table = [list(x.values()) for x in credentials]
             headers = credentials[0].keys()
@@ -85,12 +83,100 @@ def main() -> None:
                 tabulate(table, headers, tablefmt="grid"),
                 sep="\n",
             )
-            input()
+
+            while True:
+                user_choose = (
+                    input("\nEnter 'back' to go back.\nEnter ID (to Edit): ")
+                    .strip()
+                    .lower()
+                )
+
+                if user_choose == "back":
+                    break
+
+                valid_id = check_id_in_credentials(credentials, user_choose)
+                if valid_id:
+                    credentials = get_user_credentials()
+
+                    try:
+                        sure = input("Are You Sure? [y/n] ").strip().lower()[0]
+                        if sure == "y":
+                            encrypt_password(**credentials)
+                            delete_credential(valid_id)
+                            break
+                    except IndexError:
+                        pass
+
+                else:
+                    print("Invalid ID: Please enter Valid ID.")
+
+        elif menu_selected == "4":
+            clear()
+            banner("DELETE", "select and delete your saved password.")
+            credentials = user_credentials(show_passwd=False)
+
+            table = [list(x.values()) for x in credentials]
+            headers = credentials[0].keys()
+            print(
+                tabulate(table, headers, tablefmt="grid"),
+                sep="\n",
+            )
+
+            while True:
+                user_choose = (
+                    input("\nEnter 'back' to go back.\nEnter ID (to Delete): ")
+                    .strip()
+                    .lower()
+                )
+
+                if user_choose == "back":
+                    break
+
+                valid_id = check_id_in_credentials(credentials, user_choose)
+                if valid_id:
+                    delete_credential(valid_id)
+                    break
+                else:
+                    print("Invalid ID: Please enter Valid ID.")
+
         else:
             sys.exit("Exiting...")
 
 
-def user_credentials() -> list[dict]:
+def delete_credential(id_: int) -> None:
+    new_credentials = []
+    try:
+        with open("password.csv", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for i, row in enumerate(reader):
+                index = i + 1
+                if id_ != index:
+                    new_credentials.append(row)
+
+    except FileNotFoundError:
+        sys.exit("Something went wrong.")
+
+    with open("password.csv", "w", encoding="utf-8") as csvfile:
+        fieldnames = ("site", "username", "password")
+        writer = csv.DictWriter(csvfile, fieldnames)
+        writer.writeheader()
+
+        for row in new_credentials:
+            writer.writerow(row)
+
+
+def check_id_in_credentials(credentials: list[dict], id: str):
+    credentials_id = [x["id"] for x in credentials]
+
+    try:
+        id_int = int(id)
+        if id_int in credentials_id:
+            return id_int
+    except ValueError:
+        return False
+
+
+def user_credentials(show_passwd=True) -> list[dict]:
     mkey_str = ""
     res = []
 
@@ -105,18 +191,27 @@ def user_credentials() -> list[dict]:
         with open("password.csv", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for i, row in enumerate(reader):
-                f = Fernet(mkey_str.encode())
-                token = row["password"]
-                password = f.decrypt(token).decode()
+                if show_passwd:
+                    f = Fernet(mkey_str.encode())
+                    token = row["password"]
+                    password = f.decrypt(token).decode()
 
-                res.append(
-                    {
-                        "no": i + 1,
-                        "site": row["site"],
-                        "username": row["username"],
-                        "password": password,
-                    }
-                )
+                    res.append(
+                        {
+                            "id": i + 1,
+                            "site": row["site"],
+                            "username": row["username"],
+                            "password": password,
+                        }
+                    )
+                else:
+                    res.append(
+                        {
+                            "id": i + 1,
+                            "site": row["site"],
+                            "username": row["username"],
+                        }
+                    )
     except FileNotFoundError:
         sys.exit("Something went wrong.")
 
