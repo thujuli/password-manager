@@ -27,9 +27,9 @@ def main() -> None:
     while True:
         clear()
         banner("MENU", "please select the available options.")
-        menu_selected = menu()
+        selected_menu = menu()
 
-        if menu_selected == "1":
+        if selected_menu == "1":
             clear()
             banner("LIST", "list all saved passwords")
             credentials = user_credentials()
@@ -47,7 +47,7 @@ def main() -> None:
                 if back == "back":
                     break
 
-        elif menu_selected == "2":
+        elif selected_menu == "2":
             while True:
                 clear()
                 banner("ENCRYPT", "encrypt the password and save to password.csv")
@@ -72,7 +72,7 @@ def main() -> None:
 
                 break
 
-        elif menu_selected == "3":
+        elif selected_menu == "3":
             clear()
             banner("EDIT", "select and edit your saved password.")
             credentials = user_credentials(show_passwd=False)
@@ -96,12 +96,12 @@ def main() -> None:
 
                 valid_id = check_id_in_credentials(credentials, user_choose)
                 if valid_id:
-                    credentials = get_user_credentials()
+                    get_credentials = get_user_credentials()
 
                     try:
                         sure = input("Are You Sure? [y/n] ").strip().lower()[0]
                         if sure == "y":
-                            encrypt_password(**credentials)
+                            encrypt_password(**get_credentials)
                             delete_credential(valid_id)
                             break
                     except IndexError:
@@ -110,7 +110,7 @@ def main() -> None:
                 else:
                     print("Invalid ID: Please enter Valid ID.")
 
-        elif menu_selected == "4":
+        elif selected_menu == "4":
             clear()
             banner("DELETE", "select and delete your saved password.")
             credentials = user_credentials(show_passwd=False)
