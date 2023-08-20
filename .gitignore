@@ -1,4 +1,6 @@
 venv
+__pycache__
+prototype.py
+.pytest_cahce
 *.key
 *.csv
-prototype.py

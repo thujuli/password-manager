@@ -71,5 +71,5 @@ pip install -r requirements.txt
 - Run this project
 
 ```
-python main.py
+python project.py
 ```
