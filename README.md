@@ -1,5 +1,7 @@
 # Password Manager
 
+![CS50P Certificate](images/CS50P.png?raw=true "CS50P Certificate")
+
 #### Video Demo: [Password Manager](https://www.youtube.com/watch?v=yI3BWp-vnzc&t=3s)
 
 ### Background
@@ -49,9 +51,7 @@ python project.py
 ```
 
 2. **Main Menu:**
-
-   - On first run, the application prompts for a master password.
-   - After successful authentication, the main menu is displayed.
+   ![Main Menu](images/menu.png?raw=true "Main Menu")
 
 3. **List Passwords:**
    ![Display Password](images/list.png?raw=true "Display Password")
